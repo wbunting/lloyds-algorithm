@@ -7,6 +7,7 @@
 #define u8 unsigned char
 #define u32 unsigned int
 
+#include <raylib.h>
 #include <stdint.h>
 
 #define internal static
@@ -38,23 +39,6 @@ typedef double real64;
 #define ASSERT(X)
 #endif
 
-#define MAX_NODES 1000
-#define MAX_LINKS 100000
-
-struct Node {
-  int32 id;
-  float x;
-  float y;
-  float vx;
-  float vy;
-};
-
-struct Link {
-  int32 id;
-  int32 from;
-  int32 to;
-};
-
 struct app_memory {
   bool32 IsInitialized;
   uint64 PermanentStorageSize;
@@ -70,12 +54,29 @@ struct app_memory {
 LIST_OF_PLUGS
 #undef PLUG
 
-struct app_state {
-  struct Node nodes[MAX_NODES];
-  int nodes_count;
+typedef struct {
+  Vector2 start;
+  Vector2 end;
+} Segment;
 
-  struct Link links[MAX_LINKS];
-  int links_count;
+typedef struct {
+  Vector2 vertices[10000];
+  int num_vertices;
+
+  Vector2 temp_vertices[10000];
+  int temp_vertex_count;
+} Cell;
+
+typedef struct {
+  Vector2 position;
+  Vector2 centroid;
+  Color color;
+} Vertex;
+
+struct app_state {
+  Vertex vertices[1000];
+  Cell cells[1000];
+  int num_vertices;
 };
 
 #endif

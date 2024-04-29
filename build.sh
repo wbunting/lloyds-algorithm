@@ -1,6 +1,6 @@
 #!/bin/bash
 
-project_name="project_name"
+project_name="lloyd"
 
 # Check if project_name has been set properly
 if [ "$project_name" = "project_name" ]; then

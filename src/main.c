@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
   m.IsInitialized = 0;
 
   SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_ALWAYS_RUN);
-  InitWindow(800, 450, "raylib example - todomvc");
+  InitWindow(800, 550, "raylib example - todomvc");
   SetTargetFPS(60);
 
   if (!reload_libplug()) {
@@ -133,12 +133,7 @@ int main(int argc, char *argv[]) {
     }
 #endif
 
-    // if (IsKeyPressed(KEY_ENTER)) {
-    //   plug_handle_enter(&m);
-    // }
-
     plug_update(&m);
-    printf("Updated app first loop\n");
   }
 
   CloseWindow();
