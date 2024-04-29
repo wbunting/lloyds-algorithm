@@ -69,6 +69,7 @@ typedef struct {
 
 typedef struct {
   Vector2 position;
+  Vector2 velocity;
   Vector2 centroid;
   Color color;
 } Vertex;

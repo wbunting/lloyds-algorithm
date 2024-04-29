@@ -90,10 +90,6 @@ APP_PLUG int plug_update(struct app_memory *Memory) {
 
     AppState->num_vertices = 4;
 
-    // use thse as the initial vertexers
-    // Vertex 0: (120.000000, 199.000000)
-    // Vertex 1: (765.000000, 33.000000)
-    // Vertex 2: (478.000000, 414.000000)
     AppState->vertices[0].position = (Vector2){100.000000, 300.000000};
     AppState->vertices[0].color =
         (Color){GetRandomValue(0, 255), GetRandomValue(0, 255),
@@ -115,6 +111,8 @@ APP_PLUG int plug_update(struct app_memory *Memory) {
       // AppState->vertices[i].position =
       //     (Vector2){centerX + (GetRandomValue(-centerX, centerX)),
       //               centerY + (GetRandomValue(-centerY, centerY))};
+      AppState->vertices[i].velocity =
+          (Vector2){GetRandomValue(-1, 1), GetRandomValue(-1, 1)};
       AppState->vertices[i].centroid = (Vector2){0};
 
       // print the seed vertices
@@ -286,14 +284,30 @@ APP_PLUG int plug_update(struct app_memory *Memory) {
       } else {
         DrawTriangle(p1, p3, p2, AppState->vertices[i].color);
       }
-      DrawTriangleLines(p1, p2, p3, BLACK);
+      // DrawTriangleLines(p1, p2, p3, BLACK);
     }
   }
 
   for (int i = 0; i < AppState->num_vertices; i++) {
     DrawCircleV(AppState->vertices[i].position, 2, WHITE);
-    DrawText(TextFormat("%d", i), AppState->vertices[i].position.x + 4,
-             AppState->vertices[i].position.y + 4, 10, WHITE);
+    // DrawText(TextFormat("%d", i), AppState->vertices[i].position.x + 4,
+    //          AppState->vertices[i].position.y + 4, 10, WHITE);
+  }
+
+  // update the vertex positions
+  for (int i = 0; i < AppState->num_vertices; i++) {
+    AppState->vertices[i].position.x += AppState->vertices[i].velocity.x;
+    AppState->vertices[i].position.y += AppState->vertices[i].velocity.y;
+
+    // check for collision with the screen edges
+    if (AppState->vertices[i].position.x <= 0 ||
+        AppState->vertices[i].position.x >= GetScreenWidth()) {
+      AppState->vertices[i].velocity.x *= -1;
+    }
+    if (AppState->vertices[i].position.y <= 0 ||
+        AppState->vertices[i].position.y >= GetScreenHeight()) {
+      AppState->vertices[i].velocity.y *= -1;
+    }
   }
 
   DrawFPS(10, 10);
