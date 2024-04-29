@@ -160,19 +160,19 @@ APP_PLUG int plug_update(struct app_memory *Memory) {
   }
 
   // padding is 1px for now. Box with min / max and padding
-  Rectangle box = {
-      min_x - 50,
-      min_y - 50,
-      max_x - min_x + 100,
-      max_y - min_y + 100,
-  };
-  //
   // Rectangle box = {
-  //     0,
-  //     0,
-  //     GetScreenWidth(),
-  //     GetScreenHeight(),
+  //     min_x - 50,
+  //     min_y - 50,
+  //     max_x - min_x + 100,
+  //     max_y - min_y + 100,
   // };
+  //
+  Rectangle box = {
+      0,
+      0,
+      GetScreenWidth(),
+      GetScreenHeight(),
+  };
 
   // Draw the box
   DrawRectangleLinesEx(box, 1, RED);
@@ -206,22 +206,14 @@ APP_PLUG int plug_update(struct app_memory *Memory) {
       Vector2 second_intersection = {0};
       int first_intersection_index = -1;
       int second_intersection_index = -1;
-      printf("Checking for intersections between vertex %d and vertex %d\n", i,
-             j);
-      printf("Bisector point: (%f, %f), direction: (%f, %f)\n", p1.x, p1.y,
-             bisector.direction.x, bisector.direction.y);
       for (int k = 0; k < AppState->cells[i].num_vertices; k++) {
         int intersect;
         Segment edge = {
             AppState->cells[i].vertices[k],
             AppState->cells[i]
                 .vertices[(k + 1) % AppState->cells[i].num_vertices]};
-        printf("Edge %d: (%f, %f) -> (%f, %f)\n", k, edge.start.x, edge.start.y,
-               edge.end.x, edge.end.y);
         Vector2 p = intersection(edge, bisector, &intersect);
         if (intersect) {
-          printf("point %d, bisect point %d, Intersection at (%f, %f)\n", i, j,
-                 p.x, p.y);
           if (num_intersections == 0) {
             first_intersection = p;
             first_intersection_index = k + 1;
@@ -233,16 +225,7 @@ APP_PLUG int plug_update(struct app_memory *Memory) {
         }
       }
 
-      printf("Num intersections: %d\n", num_intersections);
-
       if (num_intersections == 2) {
-        printf("Found two intersections\n");
-        printf("First intersection at (%f, %f), index %d\n",
-               first_intersection.x, first_intersection.y,
-               first_intersection_index);
-        printf("Second intersection at (%f, %f), index %d\n",
-               second_intersection.x, second_intersection.y,
-               second_intersection_index);
         AppState->cells[i].temp_vertices[0] = first_intersection;
         int m = 1;
         for (int k = first_intersection_index; k < second_intersection_index;
@@ -253,63 +236,27 @@ APP_PLUG int plug_update(struct app_memory *Memory) {
         AppState->cells[i].temp_vertices[m] = second_intersection;
         AppState->cells[i].temp_vertex_count = m + 1;
 
-        for (int k = 0; k < AppState->cells[i].temp_vertex_count; k++) {
-          printf("New Cell (before reverse) %d, Vertex %d: (%f, %f)\n", i, k,
-                 AppState->cells[i].temp_vertices[k].x,
-                 AppState->cells[i].temp_vertices[k].y);
-          printf("Num vertices: %d\n", AppState->cells[i].temp_vertex_count);
-        }
-
         int collide = CheckCollisionPointPoly(
             AppState->vertices[i].position, AppState->cells[i].temp_vertices,
             AppState->cells[i].temp_vertex_count);
 
-        printf("Collide: %d\n", collide);
-
         // check that point is inside the cell
         if (!collide) {
           // reverse the temp cell
-          printf("Reversing the temp cell\n");
-          printf("Second intersection index: %d\n", second_intersection_index);
-          printf("First intersection index: %d\n", first_intersection_index);
-          printf("Second intersection: (%f, %f)\n", second_intersection.x,
-                 second_intersection.y);
-          printf("cell vertex 0: (%f, %f)\n", AppState->cells[i].vertices[0].x,
-                 AppState->cells[i].vertices[0].y);
-          printf("cell vertex 1: (%f, %f)\n", AppState->cells[i].vertices[1].x,
-                 AppState->cells[i].vertices[1].y);
-          printf("cell vertex 2: (%f, %f)\n", AppState->cells[i].vertices[2].x,
-                 AppState->cells[i].vertices[2].y);
-          printf("cell vertex 3: (%f, %f)\n", AppState->cells[i].vertices[3].x,
-                 AppState->cells[i].vertices[3].y);
           AppState->cells[i].temp_vertices[0] = second_intersection;
           int m = 1;
           int k = (second_intersection_index) % AppState->cells[i].num_vertices;
-          printf("k: %d\n", k);
           while (k !=
                  (first_intersection_index) % AppState->cells[i].num_vertices) {
-            printf("k before: %d\n", k);
             AppState->cells[i].temp_vertices[m] =
                 AppState->cells[i].vertices[k];
             k = (k + 1) % AppState->cells[i].num_vertices;
             m++;
-            printf("k after: %d\n", k);
-            printf("m: %d\n", m);
           }
 
           AppState->cells[i].temp_vertices[m] = first_intersection;
           AppState->cells[i].temp_vertex_count = m + 1;
-          printf("Reversed the temp cell\n");
         }
-
-        // print out the new cell
-        for (int k = 0; k < AppState->cells[i].temp_vertex_count; k++) {
-          printf("New Cell %d, Vertex %d: (%f, %f)\n", i, k,
-                 AppState->cells[i].temp_vertices[k].x,
-                 AppState->cells[i].temp_vertices[k].y);
-        }
-
-        printf("temp Num vertices: %d\n", AppState->cells[i].temp_vertex_count);
 
         // set the cell equal to the temp cell
         AppState->cells[i].num_vertices = AppState->cells[i].temp_vertex_count;
@@ -321,14 +268,6 @@ APP_PLUG int plug_update(struct app_memory *Memory) {
         AppState->cells[i].temp_vertex_count = 0;
         AppState->cells[i].temp_vertices[0] = (Vector2){0};
       }
-    }
-    printf("finished cell %d\n", i);
-    printf("Num vertices: %d\n", AppState->cells[i].num_vertices);
-
-    for (int k = 0; k < AppState->cells[i].num_vertices; k++) {
-      printf("Final Cell %d, Vertex %d: (%f, %f)\n", i, k,
-             AppState->cells[i].vertices[k].x,
-             AppState->cells[i].vertices[k].y);
     }
   }
 
@@ -342,10 +281,6 @@ APP_PLUG int plug_update(struct app_memory *Memory) {
       Vector2 p3 = AppState->cells[i]
                        .vertices[(j + 1) % AppState->cells[i].num_vertices];
 
-      printf("Drawing triangle\n");
-      printf("p1: (%f, %f)\n", p1.x, p1.y);
-      printf("p2: (%f, %f)\n", p2.x, p2.y);
-      printf("p3: (%f, %f)\n", p3.x, p3.y);
       if (!IsCounterclockwise(p1, p2, p3)) {
         DrawTriangle(p1, p2, p3, AppState->vertices[i].color);
       } else {
@@ -359,12 +294,9 @@ APP_PLUG int plug_update(struct app_memory *Memory) {
     DrawCircleV(AppState->vertices[i].position, 2, WHITE);
     DrawText(TextFormat("%d", i), AppState->vertices[i].position.x + 4,
              AppState->vertices[i].position.y + 4, 10, WHITE);
-    printf("CEll %d\n", i);
-    for (int j = 0; j < AppState->cells[i].num_vertices; j++) {
-      printf("Vertex %d  (%f, %f)\n", j, AppState->cells[i].vertices[j].x,
-             AppState->cells[i].vertices[j].y);
-    }
   }
+
+  DrawFPS(10, 10);
 
   EndDrawing();
 
