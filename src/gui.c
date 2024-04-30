@@ -134,6 +134,89 @@ Vector2 intersection(Segment seg, Line bisector, int *intersect) {
   return result;
 }
 
+void ComputeVoronoi(Vertex *vertices, int num_vertices, Rectangle box,
+                    Cell *cells) {
+  for (int i = 0; i < num_vertices; i++) {
+    cells[i].num_vertices = 4;
+    cells[i].vertices[0] = (Vector2){box.x, box.y};
+    cells[i].vertices[1] = (Vector2){box.x + box.width, box.y};
+    cells[i].vertices[2] = (Vector2){box.x + box.width, box.y + box.height};
+    cells[i].vertices[3] = (Vector2){box.x, box.y + box.height};
+
+    for (int j = 0; j < num_vertices; j++) {
+      if (i == j)
+        continue;
+
+      Line bisector =
+          perpendicularBisector(vertices[i].position, vertices[j].position);
+
+      // check for intersection of the bisector with the cell walls
+      int num_intersections = 0;
+      Vector2 first_intersection = {0};
+      Vector2 second_intersection = {0};
+      int first_intersection_index = -1;
+      int second_intersection_index = -1;
+      for (int k = 0; k < cells[i].num_vertices; k++) {
+        int intersect;
+        Segment edge = {cells[i].vertices[k],
+                        cells[i].vertices[(k + 1) % cells[i].num_vertices]};
+        Vector2 p = intersection(edge, bisector, &intersect);
+        if (intersect) {
+          if (num_intersections == 0) {
+            first_intersection = p;
+            first_intersection_index = k + 1;
+          } else {
+            second_intersection = p;
+            second_intersection_index = k + 1;
+          }
+          num_intersections++;
+        }
+      }
+
+      if (num_intersections == 2) {
+        cells[i].temp_vertices[0] = first_intersection;
+        int m = 1;
+        for (int k = first_intersection_index; k < second_intersection_index;
+             k++) {
+          cells[i].temp_vertices[m] = cells[i].vertices[k];
+          m++;
+        }
+        cells[i].temp_vertices[m] = second_intersection;
+        cells[i].temp_vertex_count = m + 1;
+
+        int collide = CheckCollisionPointPoly(vertices[i].position,
+                                              cells[i].temp_vertices,
+                                              cells[i].temp_vertex_count);
+
+        // check that point is inside the cell
+        if (!collide) {
+          // reverse the temp cell
+          cells[i].temp_vertices[0] = second_intersection;
+          int m = 1;
+          int k = (second_intersection_index) % cells[i].num_vertices;
+          while (k != (first_intersection_index) % cells[i].num_vertices) {
+            cells[i].temp_vertices[m] = cells[i].vertices[k];
+            k = (k + 1) % cells[i].num_vertices;
+            m++;
+          }
+
+          cells[i].temp_vertices[m] = first_intersection;
+          cells[i].temp_vertex_count = m + 1;
+        }
+
+        // set the cell equal to the temp cell
+        cells[i].num_vertices = cells[i].temp_vertex_count;
+        for (int k = 0; k < cells[i].num_vertices; k++) {
+          cells[i].vertices[k] = cells[i].temp_vertices[k];
+        }
+
+        cells[i].temp_vertex_count = 0;
+        cells[i].temp_vertices[0] = (Vector2){0};
+      }
+    }
+  }
+}
+
 APP_PLUG int plug_update(struct app_memory *Memory) {
   ASSERT(sizeof(struct app_state) <= Memory->PermanentStorageSize);
 
@@ -169,90 +252,8 @@ APP_PLUG int plug_update(struct app_memory *Memory) {
   };
 
   // Calculate Voronoi Diagram
-  for (int i = 0; i < AppState->num_vertices; i++) {
-    AppState->cells[i].num_vertices = 4;
-    AppState->cells[i].vertices[0] = (Vector2){box.x, box.y};
-    AppState->cells[i].vertices[1] = (Vector2){box.x + box.width, box.y};
-    AppState->cells[i].vertices[2] =
-        (Vector2){box.x + box.width, box.y + box.height};
-    AppState->cells[i].vertices[3] = (Vector2){box.x, box.y + box.height};
-
-    for (int j = 0; j < AppState->num_vertices; j++) {
-      if (i == j)
-        continue;
-
-      Line bisector = perpendicularBisector(AppState->vertices[i].position,
-                                            AppState->vertices[j].position);
-
-      // check for intersection of the bisector with the cell walls
-      int num_intersections = 0;
-      Vector2 first_intersection = {0};
-      Vector2 second_intersection = {0};
-      int first_intersection_index = -1;
-      int second_intersection_index = -1;
-      for (int k = 0; k < AppState->cells[i].num_vertices; k++) {
-        int intersect;
-        Segment edge = {
-            AppState->cells[i].vertices[k],
-            AppState->cells[i]
-                .vertices[(k + 1) % AppState->cells[i].num_vertices]};
-        Vector2 p = intersection(edge, bisector, &intersect);
-        if (intersect) {
-          if (num_intersections == 0) {
-            first_intersection = p;
-            first_intersection_index = k + 1;
-          } else {
-            second_intersection = p;
-            second_intersection_index = k + 1;
-          }
-          num_intersections++;
-        }
-      }
-
-      if (num_intersections == 2) {
-        AppState->cells[i].temp_vertices[0] = first_intersection;
-        int m = 1;
-        for (int k = first_intersection_index; k < second_intersection_index;
-             k++) {
-          AppState->cells[i].temp_vertices[m] = AppState->cells[i].vertices[k];
-          m++;
-        }
-        AppState->cells[i].temp_vertices[m] = second_intersection;
-        AppState->cells[i].temp_vertex_count = m + 1;
-
-        int collide = CheckCollisionPointPoly(
-            AppState->vertices[i].position, AppState->cells[i].temp_vertices,
-            AppState->cells[i].temp_vertex_count);
-
-        // check that point is inside the cell
-        if (!collide) {
-          // reverse the temp cell
-          AppState->cells[i].temp_vertices[0] = second_intersection;
-          int m = 1;
-          int k = (second_intersection_index) % AppState->cells[i].num_vertices;
-          while (k !=
-                 (first_intersection_index) % AppState->cells[i].num_vertices) {
-            AppState->cells[i].temp_vertices[m] =
-                AppState->cells[i].vertices[k];
-            k = (k + 1) % AppState->cells[i].num_vertices;
-            m++;
-          }
-
-          AppState->cells[i].temp_vertices[m] = first_intersection;
-          AppState->cells[i].temp_vertex_count = m + 1;
-        }
-
-        // set the cell equal to the temp cell
-        AppState->cells[i].num_vertices = AppState->cells[i].temp_vertex_count;
-        for (int k = 0; k < AppState->cells[i].num_vertices; k++) {
-          AppState->cells[i].vertices[k] = AppState->cells[i].temp_vertices[k];
-        }
-
-        AppState->cells[i].temp_vertex_count = 0;
-        AppState->cells[i].temp_vertices[0] = (Vector2){0};
-      }
-    }
-  }
+  ComputeVoronoi(AppState->vertices, AppState->num_vertices, box,
+                 AppState->cells);
 
   BeginDrawing();
   ClearBackground(LIGHTGRAY);
