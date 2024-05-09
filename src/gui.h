@@ -74,10 +74,90 @@ typedef struct {
   Color color;
 } Vertex;
 
+#define CLAMP(x, min, max) ((x) < (min) ? (min) : ((x) > (max) ? (max) : (x)))
+
+#define FLT_MAX __FLT_MAX__
+#define MAX_EDGES 1000
+#define MAX_EVENTS 1000
+#define MAX_BEACHLINE_ITEMS 10000
+
+typedef enum BeachlineItemType { NoneBeachline, Arc, Edge } BeachlineItemType;
+
+typedef struct EdgeStruct {
+  Vector2 start;
+  Vector2 direction;
+  int extendsUpwardsForever;
+} EdgeStruct;
+
+typedef struct ArcStruct {
+  Vector2 focus;
+  struct SweepEvent *squeezeEvent;
+} ArcStruct;
+
+typedef struct BeachlineItem {
+  BeachlineItemType type;
+  union {
+    ArcStruct arc;
+    EdgeStruct edge;
+  };
+  struct BeachlineItem *parent;
+  struct BeachlineItem *left;
+  struct BeachlineItem *right;
+} BeachlineItem;
+
+typedef enum SweepEventType {
+  NoneSweep,
+  NewPoint,
+  EdgeIntersection
+} SweepEventType;
+
+typedef struct NewPointEvent {
+  Vector2 point;
+} NewPointEvent;
+
+typedef struct EdgeIntersectionEvent {
+  Vector2 intersectionPoint;
+  BeachlineItem *squeezedArc;
+  int isValid;
+} EdgeIntersectionEvent;
+
+typedef struct SweepEvent {
+  float yCoord;
+  SweepEventType type;
+  union {
+    NewPointEvent newPoint;
+    EdgeIntersectionEvent edgeIntersect;
+  };
+} SweepEvent;
+
+typedef struct CompleteEdge {
+  Vector2 endpointA;
+  Vector2 endpointB;
+  int vertices[2];
+} CompleteEdge;
+
+typedef struct {
+  float sweepY;
+  CompleteEdge edges[MAX_EDGES];
+  int edgesSize;
+  SweepEvent *unencounteredEvents[MAX_EVENTS];
+  int unencounteredEventsSize;
+  SweepEvent events[MAX_EVENTS];
+  int eventsSize; // Current number of events
+  BeachlineItem beachlineItems[MAX_BEACHLINE_ITEMS];
+  int beachlineItemCount;
+} FortuneState;
+
 struct app_state {
   Vertex vertices[1000];
-  Cell cells[1000];
   int num_vertices;
+  FortuneState fortuneState;
+
+  int mouse_x;
+  int mouse_y;
+
+  Vector2 curvePts[1920];
+  Cell cells[1000];
 };
 
 #endif

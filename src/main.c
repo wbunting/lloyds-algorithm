@@ -103,15 +103,15 @@ int main(int argc, char *argv[]) {
   platform_load_app(&app_code, source_app_code_library_path);
 #endif
 
-  m.PermanentStorageSize = Megabytes(64);
-  m.TransientStorageSize = Megabytes(64);
+  m.PermanentStorageSize = Megabytes(256);
+  m.TransientStorageSize = Megabytes(256);
   state.total_size = m.PermanentStorageSize + m.TransientStorageSize;
   m.PermanentStorage = malloc(state.total_size);
   m.TransientStorage = (uint8_t *)m.PermanentStorage + m.TransientStorageSize;
   m.IsInitialized = 0;
 
   SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_ALWAYS_RUN);
-  InitWindow(800, 550, "raylib example - todomvc");
+  InitWindow(800, 600, "raylib example - todomvc");
   SetTargetFPS(60);
 
   if (!reload_libplug()) {
