@@ -152,6 +152,7 @@ struct app_state {
   Vertex vertices[1000];
   int num_vertices;
   FortuneState fortuneState;
+  Shader glowShader;
 
   int mouse_x;
   int mouse_y;

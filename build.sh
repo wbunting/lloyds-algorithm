@@ -1,6 +1,7 @@
 #!/bin/bash
 
 project_name="lloyd"
+gui_file="gui.c" # Default GUI file
 
 # Check if project_name has been set properly
 if [ "$project_name" = "project_name" ]; then
@@ -96,11 +97,16 @@ compile_together() {
 }
 
 compile_web() {
-  emcc -o index.html src/main_web.c src/gui.c \
-       -Os -Wall -I. -I./include/ -L. \
-       -s USE_GLFW=3 -s ASYNCIFY --shell-file ./shell.html -DPLATFORM_WEB
+  html_file="index"
 
-  mv index.* www/
+  emcc -o www/"$html_file".html src/main_web.c "src/$gui_file" \
+       -Os -Wall ./include/web/raylib/src/libraylib.a \
+       -I. -I./include/web -L. -L/include/web/raylib/src/libraylib.a \
+       -s USE_GLFW=3 -s ENVIRONMENT='web' -s ASYNCIFY -s MODULARIZE=1 -s EXPORT_ES6=1 -DPLATFORM_WEB
+
+  echo "[INFO] Project compiled successfully"
+  echo "file at www/$html_file.js"
+  test www/"$html_file".html || exit 1
 }
 
 echo "#ifndef BUILD_H" > "./include/build.h"

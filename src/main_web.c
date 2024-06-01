@@ -9,44 +9,7 @@ struct app_memory m;
 #include <emscripten/emscripten.h>
 #endif
 
-EM_ASYNC_JS(int, fetchTasks, (int ptr), {
-  const response = await fetch("https://todomvc.wbunting.com/api");
-  const tasks = await response.json();
-  const numTasks = Math.min(tasks.length, 3);
-  let offset = 0;
-  for (let i = 0; i < numTasks; i++) {
-    const task = tasks[i];
-
-    const title = task.title;
-    for (let j = 0; j < 300; j++) {
-      if (j < title.length) {
-        setValue(ptr + offset + j, title.charCodeAt(j), 'i8');
-      } else {
-        setValue(ptr + offset + j, 0, 'i8'); // Null padding for the rest
-      }
-    }
-    offset += 300;
-
-    setValue(ptr + offset, task.completed ? 1 : 0, 'i32'); // Task State
-    offset += 4;
-  }
-  return numTasks;
-});
-
-INITILIZE_TODOS_PLATFORM(InitilizeTodosPlatform) {
-  printf("InitilizeTodosPlatform\n");
-  printf("task size: %lu\n", sizeof(struct Task));
-
-  return fetchTasks((int)tasks);
-}
-
-void GameFrame(void) {
-  if (IsKeyPressed(KEY_ENTER)) {
-    plug_handle_enter(&m);
-  }
-
-  plug_update(&m);
-}
+void GameFrame(void) { plug_update(&m); }
 
 typedef unsigned long size_t;
 
@@ -81,7 +44,6 @@ int main(void) {
     printf("Failed to allocate memory");
   }
   m.TransientStorage = (uint8_t *)m.PermanentStorage + m.TransientStorageSize;
-  m.initilizeTodosPlatform = InitilizeTodosPlatform;
   m.IsInitialized = 0;
 
   const int screenWidth = 800;

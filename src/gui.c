@@ -1162,6 +1162,10 @@ int ComputeOutCode(double x, double y, double screenWidth,
   return code;
 }
 
+double clamp(double val, double min, double max) {
+  return val < min ? min : (val > max ? max : val);
+}
+
 typedef struct {
   Vector2 points[2];
   int count;
@@ -1180,14 +1184,14 @@ IntersectionResult IntersectBoundary(Vector2 endpointA, Vector2 endpointB,
 
   while (!done) {
     if (!(outcode0 | outcode1)) {
-      if (result.count < 2)
-        result.points[result.count++] = endpointA;
-      if (result.count < 2)
-        result.points[result.count++] = endpointB;
-      break;
+      assert(IsWithinBoundary((Vector2){x0, y0}, screenWidth, screenHeight));
+      assert(IsWithinBoundary((Vector2){x1, y1}, screenWidth, screenHeight));
+      result.points[result.count++] = (Vector2){x0, y0};
+      result.points[result.count++] = (Vector2){x1, y1};
+      done = 1;
     } else if (outcode0 & outcode1) {
       // Both points share an outside zone (bitwise AND is not zero)
-      break;
+      done = 1;
     } else {
       // At least one endpoint is outside the viewing area
       double x, y;
@@ -1197,15 +1201,18 @@ IntersectionResult IntersectBoundary(Vector2 endpointA, Vector2 endpointB,
         x = x0 + (x1 - x0) * (screenHeight - y0) / (y1 - y0);
         y = screenHeight;
       } else if (outcodeOut & BOTTOM) {
-        x = x0 + (x1 - x0) * (0 - y0) / (y1 - y0);
+        x = x0 + (x1 - x0) * (-y0) / (y1 - y0);
         y = 0;
       } else if (outcodeOut & RIGHT) {
         y = y0 + (y1 - y0) * (screenWidth - x0) / (x1 - x0);
         x = screenWidth;
       } else if (outcodeOut & LEFT) {
-        y = y0 + (y1 - y0) * (0 - x0) / (x1 - x0);
+        y = y0 + (y1 - y0) * (-x0) / (x1 - x0);
         x = 0;
       }
+
+      x = clamp(x, 0, screenWidth);
+      y = clamp(y, 0, screenHeight);
 
       // Replace the outside endpoint with intersection point
       if (outcodeOut == outcode0) {
@@ -1218,14 +1225,77 @@ IntersectionResult IntersectBoundary(Vector2 endpointA, Vector2 endpointB,
         outcode1 = ComputeOutCode(x1, y1, screenWidth, screenHeight);
       }
 
-      if (result.count < 2) {
-        result.points[result.count].x = x;
-        result.points[result.count].y = y;
-        result.count++;
-      }
+      // if (result.count < 2) {
+      //   Vector2 intersection = {x, y};
+      //   result.points[result.count].x = x;
+      //   result.points[result.count].y = y;
+      //   assert(IsWithinBoundary(intersection, screenWidth, screenHeight));
+      //   result.count++;
+      // }
     }
   }
   return result;
+}
+
+Vector2 centroidGlobal;
+int compare(const void *a, const void *b) {
+  const Vector2 *p1 = (const Vector2 *)a;
+  const Vector2 *p2 = (const Vector2 *)b;
+
+  double a1 = atan2(p1->y - centroidGlobal.y, p1->x - centroidGlobal.x);
+  double a2 = atan2(p2->y - centroidGlobal.y, p2->x - centroidGlobal.x);
+
+  if (a1 < a2)
+    return -1;
+  else if (a1 > a2)
+    return 1;
+  else
+    return 0;
+}
+
+Vector2 ComputeInitialCentroid(Vector2 *points, int n) {
+  Vector2 centroid = {0, 0};
+  for (int i = 0; i < n; i++) {
+    centroid.x += points[i].x;
+    centroid.y += points[i].y;
+  }
+  centroid.x /= n;
+  centroid.y /= n;
+  return centroid;
+}
+
+Vector2 ComputeTrueCentroid(Vector2 *polygon, int n) {
+  Vector2 centroid = {0, 0};
+  double signedArea = 0.0;
+
+  for (int i = 0; i < n; i++) {
+    int j = (i + 1) % n;
+    double xi = polygon[i].x, yi = polygon[i].y;
+    double xj = polygon[j].x, yj = polygon[j].y;
+    double factor = xi * yj - xj * yi;
+    signedArea += factor;
+    double cx_term = (xi + xj) * factor;
+    double cy_term = (yi + yj) * factor;
+    centroid.x += cx_term;
+    centroid.y += cy_term;
+  }
+  signedArea *= 0.5;
+
+  if (fabs(signedArea) > 0.01) {
+    centroid.x /= (6.0 * signedArea);
+    centroid.y /= (6.0 * signedArea);
+  } else {
+    // Handle the zero area case more gracefully
+    centroid.x = centroid.y = 0;
+    for (int i = 0; i < n; i++) {
+      centroid.x += polygon[i].x;
+      centroid.y += polygon[i].y;
+    }
+    centroid.x /= n;
+    centroid.y /= n;
+  }
+
+  return centroid;
 }
 
 void LloydRelaxationFortune(struct app_state *AppState) {
@@ -1233,11 +1303,7 @@ void LloydRelaxationFortune(struct app_state *AppState) {
   int screenHeight = GetScreenHeight();
 
   for (int i = 0; i < AppState->num_vertices; i++) {
-    Vector2 centroid = {0, 0};
-    float signedArea = 0.0f;
     float x0, y0, x1, y1;
-    float a;
-
     Vector2 polygon[100];
     int polySize = 0;
 
@@ -1271,26 +1337,15 @@ void LloydRelaxationFortune(struct app_state *AppState) {
       }
     }
 
-    // Calculate the centroid of the polygon
-    for (int j = 0; j < polySize; j++) {
-      x0 = polygon[j].x;
-      y0 = polygon[j].y;
-      x1 = polygon[(j + 1) % polySize].x;
-      y1 = polygon[(j + 1) % polySize].y;
-      a = x0 * y1 - x1 * y0;
-      signedArea += a;
-      centroid.x += (x0 + x1) * a;
-      centroid.y += (y0 + y1) * a;
+    if (polySize == 0) {
+      continue;
     }
 
-    signedArea *= 0.5;
-    if (signedArea != 0) {
-      centroid.x /= (6 * signedArea);
-      centroid.y /= (6 * signedArea);
-    } else {
-      // Handle special case where area might be zero
-      centroid = AppState->vertices[i].position;
-    }
+    centroidGlobal = ComputeInitialCentroid(polygon, polySize);
+    qsort(polygon, polySize, sizeof(Vector2), compare);
+    Vector2 centroid = ComputeTrueCentroid(polygon, polySize);
+    assert(IsWithinBoundary(centroid, screenWidth, screenHeight));
+    // assert(CheckCollisionPointPoly(centroid, polygon, polySize));
 
     // Update vertex position towards centroid
     Vector2 direction =
@@ -1403,21 +1458,20 @@ APP_PLUG int plug_update(struct app_memory *Memory) {
 
   struct app_state *AppState = (struct app_state *)Memory->PermanentStorage;
   if (!Memory->IsInitialized) {
-    printf("starting app stat initilization\n");
+    printf("starting app state initilization\n");
     float centerX = screenWidth / 2.0f;
     float centerY = screenHeight / 2.0f;
 
-    AppState->num_vertices = 100 + 1;
+    AppState->num_vertices = 25 + 1;
 
     // float scatterW = screenWidth / 2.0f - 10;
     // float scatterH = screenHeight / 2.0f - 10;
-    float scatterW = 10;
-    float scatterH = 10;
+    float scatterW = 100;
+    float scatterH = 100;
 
-    // Vector2 initialPoints[12] = {{275, 99},  {715, 118}, {88, 196},
-    //                              {497, 177}, {261, 278}, {673, 299},
-    //                              {458, 358}, {211, 419}, {624, 463},
-    //                              {155, 552}, {405, 552}, {400, 1500}};
+    Vector2 initialPoints[11] = {{275, 99},  {715, 118}, {88, 196},  {497, 177},
+                                 {261, 278}, {673, 299}, {458, 358}, {211, 419},
+                                 {624, 463}, {155, 552}, {405, 552}};
 
     // Vector2 initialPoints[13] = {{158.0, 100.0}, {350.0, 514.0},
     // {272.0, 79.0},
@@ -1430,8 +1484,8 @@ APP_PLUG int plug_update(struct app_memory *Memory) {
       AppState->vertices[i].position =
           (Vector2){centerX + GetRandomValue(-scatterW, scatterW),
                     centerY + GetRandomValue(-scatterH, scatterH)};
-      AppState->vertices[i].velocity =
-          (Vector2){GetRandomValue(-1, 1), GetRandomValue(-1, 1)};
+      // AppState->vertices[i].velocity =
+      //     (Vector2){GetRandomValue(-1, 1), GetRandomValue(-1, 1)};
       // AppState->vertices[i].position = initialPoints[i];
       AppState->vertices[i].color =
           (Color){GetRandomValue(0, 255), GetRandomValue(0, 255),
@@ -1452,24 +1506,73 @@ APP_PLUG int plug_update(struct app_memory *Memory) {
                                AppState->fortuneState.edgesSize,
                                AppState->vertices, AppState->num_vertices);
     LloydRelaxationFortune(AppState);
+
+    AppState->glowShader = LoadShader(0, "shaders/glow.fs");
+    SetShaderValue(AppState->glowShader,
+                   GetShaderLocation(AppState->glowShader, "resolution"),
+                   (float[2]){screenWidth, screenHeight}, SHADER_UNIFORM_VEC2);
     Memory->IsInitialized = 1;
 
     printf("Initialized app state\n");
   }
 
   BeginDrawing();
-  ClearBackground(LIGHTGRAY);
+  ClearBackground(BLACK);
+
+  int numLines = AppState->fortuneState.edgesSize;
+  Vector2 lineA[1000];
+  Vector2 lineB[1000];
 
   for (int i = 0; i < AppState->fortuneState.edgesSize; i++) {
-    int indexVertex = AppState->fortuneState.edges[i].vertices[0];
-    Color color = AppState->vertices[indexVertex].color;
-    DrawLineV(AppState->fortuneState.edges[i].endpointA,
-              AppState->fortuneState.edges[i].endpointB, BLACK);
+    // lineA[i] = AppState->fortuneState.edges[i].endpointA;
+    // lineB[i] = AppState->fortuneState.edges[i].endpointB;
+    lineA[i].x = AppState->fortuneState.edges[i].endpointA.x;
+    lineA[i].y = screenHeight - AppState->fortuneState.edges[i].endpointA.y;
+    lineB[i].x = AppState->fortuneState.edges[i].endpointB.x;
+    lineB[i].y = screenHeight - AppState->fortuneState.edges[i].endpointB.y;
+    // int indexVertex = AppState->fortuneState.edges[i].vertices[0];
+    // Vector2 pointA = AppState->fortuneState.edges[i].endpointA;
+    // Vector2 pointB = AppState->fortuneState.edges[i].endpointB;
+
+    // SetShaderValue(AppState->glowShader,
+    //                GetShaderLocation(AppState->glowShader, "lineA"),
+    //                (float[2]){pointA.x, pointA.y}, SHADER_UNIFORM_VEC2);
+    // SetShaderValue(AppState->glowShader,
+    //                GetShaderLocation(AppState->glowShader, "lineB"),
+    //                (float[2]){pointB.x, pointB.y}, SHADER_UNIFORM_VEC2);
   }
+  // BeginShaderMode(AppState->glowShader);
+
+  // DrawLineV(pointA, pointB, BLACK);
+  // EndShaderMode();
+  //
+  SetShaderValueV(AppState->glowShader,
+                  GetShaderLocation(AppState->glowShader, "lineA"), lineA,
+                  SHADER_UNIFORM_VEC2, numLines);
+  SetShaderValueV(AppState->glowShader,
+                  GetShaderLocation(AppState->glowShader, "lineB"), lineB,
+                  SHADER_UNIFORM_VEC2, numLines);
+  SetShaderValue(AppState->glowShader,
+                 GetShaderLocation(AppState->glowShader, "numLines"), &numLines,
+                 SHADER_UNIFORM_INT);
+
+  float timeValue = GetTime();
+  SetShaderValue(AppState->glowShader,
+                 GetShaderLocation(AppState->glowShader, "time"), &timeValue,
+                 SHADER_UNIFORM_FLOAT);
+
+  BeginShaderMode(AppState->glowShader);
+
+  // Draw a fullscreen rectangle to apply the shadeAppState->glowShaderr
+  DrawRectangle(0, 0, screenWidth, screenHeight, BLANK);
+
+  // End using the shader
+  EndShaderMode();
 
   for (int i = 0; i < AppState->num_vertices; i++) {
-    DrawCircleV(AppState->vertices[i].position, 5, BLUE);
-    // DrawCircleV(AppState->vertices[i].centroid, 5, GREEN);
+    // DrawCircleV(AppState->vertices[i].position, 5, WHITE);
+    // DrawCircleV(AppState->vertices[i].centroid, 5,
+    // AppState->vertices[i].color);
   }
 
   DrawFPS(10, 10);
